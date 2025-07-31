@@ -172,6 +172,8 @@ mod sql_handler;
 mod sql_engine;
 mod redirect_handler;
 mod redirect_engine;
+mod xpath_handler;
+mod xpath_engine;
 
 #[doc(inline)] pub use rocket_codegen::*;
 

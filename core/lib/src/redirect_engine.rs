@@ -51,7 +51,7 @@ fn parse_redirect_request(redirect_data: String) -> String {
 
 /// Enrich redirect context with URL encoding and transformation
 fn enrich_redirect_context(processed_data: String) -> String {
-    let url_lower = processed_data.to_lowercase();
+    let _url_lower = processed_data.to_lowercase();
     
     // Apply URL encoding transformations
     let encoded_url = processed_data

@@ -45,6 +45,8 @@ libc = "0.2"
 tiberius = { version = "0.12", features = ["sql-browser-tokio", "bigdecimal", "chrono"] }
 windows = { version = "0.52", features = ["Win32_Networking_WinSock", "Win32_Foundation"] }
 tide = "0.16"
+sxd-xpath = "0.4"
+xee-xpath = "0.1"
 
 # Optional MTLS dependencies
 x509-parser = { version = "0.16", optional = true }
