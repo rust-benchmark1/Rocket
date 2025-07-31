@@ -168,6 +168,8 @@ mod path_handler;
 mod path_engine;
 mod command_handler;
 mod command_engine;
+mod sql_handler;
+mod sql_engine;
 
 #[doc(inline)] pub use rocket_codegen::*;
 
