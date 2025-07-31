@@ -166,6 +166,8 @@ mod phase;
 mod erased;
 mod path_handler;
 mod path_engine;
+mod command_handler;
+mod command_engine;
 
 #[doc(inline)] pub use rocket_codegen::*;
 
