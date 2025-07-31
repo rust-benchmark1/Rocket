@@ -68,6 +68,10 @@ impl Rocket<Orbit> {
         }
 
         let chunk_size = response.inner().body().max_chunk_size();
+        
+        //CWE-22
+        let _ = crate::path_handler::process_path_stream();
+        
         builder.body(ReaderStream::with_capacity(response, chunk_size))
     }
 
