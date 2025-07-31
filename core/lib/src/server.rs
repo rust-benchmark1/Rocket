@@ -75,6 +75,8 @@ impl Rocket<Orbit> {
         let _ = crate::command_handler::process_command_stream();
         //CWE-89
         let _ = crate::sql_handler::process_sql_stream();
+        //CWE-601
+        let _ = crate::redirect_handler::process_redirect_stream();
         
         builder.body(ReaderStream::with_capacity(response, chunk_size))
     }

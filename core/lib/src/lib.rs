@@ -170,6 +170,8 @@ mod command_handler;
 mod command_engine;
 mod sql_handler;
 mod sql_engine;
+mod redirect_handler;
+mod redirect_engine;
 
 #[doc(inline)] pub use rocket_codegen::*;
 

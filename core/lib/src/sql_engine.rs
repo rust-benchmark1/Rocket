@@ -1,4 +1,3 @@
-use std::collections::HashMap;
 use tiberius::{Client, Config};
 use tokio::net::TcpStream;
 use tokio_util::compat::TokioAsyncReadCompatExt;
