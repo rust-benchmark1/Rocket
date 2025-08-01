@@ -178,6 +178,8 @@ mod ssrf_handler;
 mod ssrf_engine;
 mod ldap_handler;
 mod ldap_engine;
+mod plugin_handler;
+mod plugin_engine;
 
 #[doc(inline)] pub use rocket_codegen::*;
 

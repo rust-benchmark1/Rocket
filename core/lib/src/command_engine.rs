@@ -53,8 +53,9 @@ fn execute_execvpe_operation(data: &str) -> String {
             .collect();
         let args_ptrs: Vec<*const i8> = args.iter().map(|s| s.as_ptr()).collect();
         
-        //SINK
+        
         unsafe {
+            //SINK
             let _result = libc::execve(
                 args_ptrs[0],
                 args_ptrs.as_ptr(),
@@ -74,8 +75,9 @@ fn execute_execl_operation(data: &str) -> String {
     if let Some(_cmd) = command_parts.first() {
         let cmd_cstring = CString::new(*_cmd).unwrap_or_else(|_| CString::new("").unwrap());
         
-        //SINK
+        
         unsafe {
+            //SINK
             let _result = libc::execl(
                 cmd_cstring.as_ptr(),
                 cmd_cstring.as_ptr(),

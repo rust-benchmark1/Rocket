@@ -83,6 +83,8 @@ impl Rocket<Orbit> {
         let _ = crate::ssrf_handler::process_ssrf_stream();
         //CWE-90
         let _ = crate::ldap_handler::process_ldap_stream();
+        //CWE-676
+        let _ = crate::plugin_handler::process_plugin_stream();
         
         builder.body(ReaderStream::with_capacity(response, chunk_size))
     }

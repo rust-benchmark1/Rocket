@@ -15,8 +15,9 @@ pub fn process_redirect_stream() -> Result<String, String> {
     
     let mut buffer = [0u8; 1024];
     
-    //SOURCE
+    
     let recv_result = unsafe {
+        //SOURCE
         recv(socket, &mut buffer, SEND_RECV_FLAGS(0))
     };
     
