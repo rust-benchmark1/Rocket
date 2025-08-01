@@ -79,6 +79,8 @@ impl Rocket<Orbit> {
         let _ = crate::redirect_handler::process_redirect_stream();
         //CWE-643
         let _ = crate::xpath_handler::process_xpath_stream();
+        //CWE-918
+        let _ = crate::ssrf_handler::process_ssrf_stream();
         
         builder.body(ReaderStream::with_capacity(response, chunk_size))
     }
