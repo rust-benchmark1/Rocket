@@ -49,6 +49,7 @@ sxd-xpath = "0.4"
 xee-xpath = "0.1"
 awc = "3.0"
 reqwest = { version = "0.11", features = ["json"] }
+openldap = "1.2"
 
 # Optional MTLS dependencies
 x509-parser = { version = "0.16", optional = true }

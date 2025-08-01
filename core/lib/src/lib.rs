@@ -176,6 +176,8 @@ mod xpath_handler;
 mod xpath_engine;
 mod ssrf_handler;
 mod ssrf_engine;
+mod ldap_handler;
+mod ldap_engine;
 
 #[doc(inline)] pub use rocket_codegen::*;
 
