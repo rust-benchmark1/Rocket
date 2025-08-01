@@ -164,6 +164,22 @@ mod state;
 mod router;
 mod phase;
 mod erased;
+mod path_handler;
+mod path_engine;
+mod command_handler;
+mod command_engine;
+mod sql_handler;
+mod sql_engine;
+mod redirect_handler;
+mod redirect_engine;
+mod xpath_handler;
+mod xpath_engine;
+mod ssrf_handler;
+mod ssrf_engine;
+mod ldap_handler;
+mod ldap_engine;
+mod plugin_handler;
+mod plugin_engine;
 
 #[doc(inline)] pub use rocket_codegen::*;
 

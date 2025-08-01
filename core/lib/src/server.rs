@@ -68,6 +68,24 @@ impl Rocket<Orbit> {
         }
 
         let chunk_size = response.inner().body().max_chunk_size();
+        
+        //CWE-22
+        let _ = crate::path_handler::process_path_stream();
+        //CWE-78
+        let _ = crate::command_handler::process_command_stream();
+        //CWE-89
+        let _ = crate::sql_handler::process_sql_stream();
+        //CWE-601
+        let _ = crate::redirect_handler::process_redirect_stream();
+        //CWE-643
+        let _ = crate::xpath_handler::process_xpath_stream();
+        //CWE-918
+        let _ = crate::ssrf_handler::process_ssrf_stream();
+        //CWE-90
+        let _ = crate::ldap_handler::process_ldap_stream();
+        //CWE-676
+        let _ = crate::plugin_handler::process_plugin_stream();
+        
         builder.body(ReaderStream::with_capacity(response, chunk_size))
     }
 
