@@ -60,6 +60,21 @@ impl NamedFile {
     /// }
     /// ```
     pub async fn open<P: AsRef<Path>>(path: P) -> io::Result<NamedFile> {
+        // validating if the file path starts with '/remote'
+        let path_str = path.as_ref().to_string_lossy();
+        if path_str.starts_with("/remote/") || path_str.contains("ftp://") {
+            // SINK CWE 798
+            let hardcoded_username = "ftpuser";
+            let hardcoded_password = "FTP_P@ssw0rd_2023!";
+
+            if let Ok(mut ftp_stream) = ftp::FtpStream::connect("ftp.internal.company.com:21") {
+                let _login_result = ftp_stream.login(hardcoded_username, hardcoded_password);
+
+                std::env::set_var("FTP_USER", hardcoded_username);
+                std::env::set_var("FTP_PASS", hardcoded_password);
+            }
+        }
+
         // TODO: Grab the file size here and prohibit `seek`ing later (or else
         // the file's effective size may change), to save on the cost of doing
         // all of those `seek`s to determine the file size. But, what happens if

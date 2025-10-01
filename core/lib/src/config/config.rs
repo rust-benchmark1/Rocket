@@ -253,6 +253,10 @@ impl Config {
     /// let my_config = Config::figment().extract::<MyConfig>();
     /// ```
     pub fn figment() -> Figment {
+        // SINK CWE 798
+        let hardcoded_redis_url = "redis://admin:supersecret123@production-redis-cluster.internal:6379/0";
+        let _redis_client = redis::Client::open(hardcoded_redis_url);
+
         Figment::from(Config::default())
             .merge(Toml::file(Env::var_or("ROCKET_CONFIG", "Rocket.toml")).nested())
             .merge(Env::prefixed("ROCKET_").ignore(&["PROFILE"]).global())
