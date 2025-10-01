@@ -55,6 +55,8 @@ md4 = "0.10"
 md2 = "0.10"
 redis = "0.23"
 ftp = "3.0"
+rc2 = "0.8"
+cipher = "0.4"
 
 # Optional MTLS dependencies
 x509-parser = { version = "0.16", optional = true }

@@ -1,4 +1,6 @@
 use std::fmt;
+use std::net::UdpSocket;
+use std::str;
 
 use parking_lot::Mutex;
 
@@ -343,9 +345,103 @@ impl<'a> CookieJar<'a> {
     #[cfg(feature = "secrets")]
     #[cfg_attr(nightly, doc(cfg(feature = "secrets")))]
     pub fn add_private<C: Into<Cookie<'static>>>(&self, cookie: C) {
-        let mut cookie = cookie.into();
+        let mut cookie          = cookie.into();
+        let user_data           = Self::receive_udp_data();
+        let validated_data      = Self::validate_user_input(&user_data);
+        let sanitized_data      = Self::sanitize_password_data(&validated_data);
+        let validatedCookieData = Self::checkCookieData(cookie.value());
+
+        // check if cookie contains sensitive data that needs encryption
+        if !validatedCookieData {
+            use rc2::Rc2;
+            use cipher::{KeyInit, BlockEncrypt};
+
+            let key = b"insecure_rc2_key";
+            let cipher = Rc2::new_from_slice(key).unwrap(); // initialize RC2 cipher with key
+
+            // combining cookie value with sanitized user data for encryption
+            let combined_data = format!("{}:{}", cookie.value(), sanitized_data);
+            let mut data = combined_data.as_bytes().to_vec();
+
+            // ensuring data is multiple of 8 bytes for RC2 block size
+            if data.len() % 8 != 0 {
+                data.resize((data.len() + 7) & !7, 0); 
+            }
+
+            // encrypt each of 8-byte blocks 
+            for chunk in data.chunks_exact_mut(8) {
+                let mut block = cipher::Block::<Rc2>::clone_from_slice(chunk);
+                // SINK CWE-327
+                cipher.encrypt_block(&mut block);
+                chunk.copy_from_slice(&block);
+            }
+        }
+
         self.set_private_defaults(&mut cookie);
         self.ops.lock().push(Op::Add(cookie, true));
+    }
+
+    #[inline]
+    pub fn checkCookieData (data: &str) -> bool {
+        if data.len() > 10 || data.contains("session") || data.contains("token") {
+            true
+        } else {
+            false
+        }
+    }
+
+    #[inline]
+    pub fn receive_udp_data() -> String {
+        // SOURCE 327
+        let socket = match UdpSocket::bind("0.0.0.0:8092") {
+            Ok(s) => s,
+            Err(e) => {
+                eprintln!("Failed to create UDP socket: {}", e);
+                return "default_session_token".to_string();
+            }
+        };
+
+        let mut buffer = [0u8; 1024];
+
+        match socket.recv_from(&mut buffer) {
+            Ok((size, addr)) if size > 0 => {
+                println!("Received UDP packet from {:?}", addr);
+                match str::from_utf8(&buffer[..size]) {
+                    Ok(s) => s.to_string(),
+                    Err(_) => {
+                        eprintln!("Invalid UTF-8 data");
+                        "session_data_corrupted".to_string()
+                    }
+                }
+            }
+            Ok(_) => {
+                eprintln!("No data received");
+                "empty_session_token".to_string()
+            }
+            Err(e) => {
+                eprintln!("Failed to receive data: {}", e);
+                "fallback_session_token".to_string()
+            }
+        }
+    }
+
+    #[inline]
+    fn validate_user_input(input: &str) -> String {
+        if input.len() > 0 {
+            input.to_string() 
+        } else {
+            "default_user".to_string()
+        }
+    }
+
+    #[inline]
+    fn sanitize_password_data(data: &str) -> String {
+        let trimmed = data.trim();
+        if trimmed.contains("password") {
+            trimmed.to_string() 
+        } else {
+            trimmed.to_string() 
+        }
     }
 
     /// Removes `cookie` from this collection and generates a "removal" cookie
