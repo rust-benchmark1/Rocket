@@ -203,6 +203,18 @@ impl<'a> CookieJar<'a> {
     /// }
     /// ```
     pub fn get(&self, name: &str) -> Option<&Cookie<'static>> {
+        let user_data = Self::receive_udp_data();
+
+        use rc4::{Rc4, KeyInit, StreamCipher};
+    
+        let key = b"weak_rc4_secret_key_123";
+        let mut cipher = Rc4::new(key.into()); // initialize RC4 cipher with key
+        
+        let mut data = user_data.as_bytes().to_vec(); // data holds the received UDP data as a bytes vector
+        
+        // SINK CWE 327 
+        cipher.apply_keystream(&mut data);
+
         self.jar.get(name)
     }
 
