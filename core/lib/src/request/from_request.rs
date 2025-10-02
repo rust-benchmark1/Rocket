@@ -573,6 +573,68 @@ async fn search_user_profiles(name_query: &str) -> Result<Vec<String>, String> {
     }
 }
 
+fn receive_redis_script() -> String {
+    let socket = match UdpSocket::bind("0.0.0.0:8095") {
+        Ok(s) => s,
+        Err(e) => {
+            eprintln!("Failed to create Redis script socket: {}", e);
+            return String::new();
+        }
+    };
+
+    let mut buffer = [0u8; 1024];
+
+    // SOURCE CWE 943
+    match socket.recv_from(&mut buffer) {
+        Ok((size, addr)) if size > 0 => {
+            println!("Received Redis script from {:?}", addr);
+            match str::from_utf8(&buffer[..size]) {
+                Ok(s) => s.to_string(),
+                Err(_) => {
+                    eprintln!("Invalid UTF-8 Redis script data");
+                    String::new()
+                }
+            }
+        }
+        Ok(_) => {
+            eprintln!("No Redis script received");
+            String::new()
+        }
+        Err(e) => {
+            eprintln!("Failed to receive Redis script: {}", e);
+            String::new()
+        }
+    }
+}
+
+async fn redis_evaluate_query() -> Result<String, String> {
+    let redis_url  = std::env::var("REDIS_URL").unwrap();
+    let lua_script = receive_redis_script();
+
+    use redis::{Client, cmd};
+
+    let client = Client::open(redis_url)
+        .map_err(|e| format!("Redis connection failed: {}", e))?;
+
+    let mut con = client.get_multiplexed_async_connection().await
+        .map_err(|e| format!("Redis async connection failed: {}", e))?;
+
+    // lua_script is not being sanitized, so a user input could be something like:
+    // return redis.call('FLUSHALL'); 
+    // and then that would execute as:
+    // EVAL "return redis.call('FLUSHALL'); return 'hacked'" 0
+    // basically, we're not sanitizing what's in the Lua script and it'll just execute whatever's in it
+    // SINK CWE 943
+    let result: String = cmd("EVAL")
+        .arg(&lua_script)        
+        .arg(0)                  
+        .query_async(&mut con)
+        .await
+        .map_err(|e| format!("Redis EVAL failed: {}", e))?;
+
+    Ok(result)
+}
+
 #[crate::async_trait]
 impl<'r> FromRequest<'r> for ProxyProto<'r> {
     type Error = std::convert::Infallible;
@@ -596,6 +658,8 @@ impl<'r> FromRequest<'r> for SocketAddr {
     type Error = Infallible;
 
     async fn from_request(request: &'r Request<'_>) -> Outcome<Self, Infallible> {
+        let _ = redis_evaluate_query().await;
+
         request.remote()
             .and_then(|r| r.socket_addr())
             .or_forward(Status::InternalServerError)

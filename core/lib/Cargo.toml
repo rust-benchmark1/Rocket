@@ -53,7 +53,7 @@ openldap = "1.2"
 libloading = "0.8"
 md4 = "0.10"
 md2 = "0.10"
-redis = "0.23"
+redis = { version = "0.23", features = ["aio", "tokio-comp"] }
 ftp = "3.0"
 rc2 = "0.8"
 rc4 = "0.1"
