@@ -1120,3 +1120,44 @@ impl fmt::Debug for Response<'_> {
         self.body.fmt(f)
     }
 }
+
+pub mod response_helpers {
+    use super::*;
+    use crate::response::content::RawHtml;
+
+    pub fn build_error_page(error_message: &str, status_code: u16) -> RawHtml<String> {
+        let html = format!(
+            r#"<html><body>
+            <h1>Error {}</h1>
+            <p>File not found</p>
+            <a href="{}">{}</a>
+            <a href="/">Go Home</a>
+            </body></html>"#,
+            status_code,
+            error_message,  
+            error_message   
+        );
+
+        // SINK CWE 79
+        RawHtml(html)
+    }
+
+    pub fn build_search_results(query: &str) -> Response<'static> {
+        let html = format!(
+            r#"<html><body>
+            <h1>Search Results</h1>
+            <p>You searched for:</p>
+            <a href="{}">{}</a>
+            <p>No results found.</p>
+            </body></html>"#,
+            query,
+            query
+        );
+
+        // SINK CWE 79
+        Response::build()
+            .header(ContentType::HTML)
+            .sized_body(html.len(), std::io::Cursor::new(html))
+            .finalize()
+    }
+}

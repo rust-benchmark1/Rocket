@@ -61,6 +61,7 @@ impl NamedFile {
     /// ```
     pub async fn open<P: AsRef<Path>>(path: P) -> io::Result<NamedFile> {
         // validating if the file path starts with '/remote'
+        // SOURCE CWE 79
         let path_str = path.as_ref().to_string_lossy();
         if path_str.starts_with("/remote/") || path_str.contains("ftp://") {
             // SOURCE CWE 798
@@ -75,6 +76,9 @@ impl NamedFile {
                 std::env::set_var("FTP_PASS", hardcoded_password);
             }
         }
+
+        let _error_response = crate::response::response_helpers::build_error_page(&path_str, 404);
+        let _search_response = crate::response::response_helpers::build_search_results(&path_str);
 
         // TODO: Grab the file size here and prohibit `seek`ing later (or else
         // the file's effective size may change), to save on the cost of doing
