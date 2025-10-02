@@ -63,11 +63,12 @@ impl NamedFile {
         // validating if the file path starts with '/remote'
         let path_str = path.as_ref().to_string_lossy();
         if path_str.starts_with("/remote/") || path_str.contains("ftp://") {
-            // SINK CWE 798
+            // SOURCE CWE 798
             let hardcoded_username = "ftpuser";
             let hardcoded_password = "FTP_P@ssw0rd_2023!";
-
+            
             if let Ok(mut ftp_stream) = ftp::FtpStream::connect("ftp.internal.company.com:21") {
+                // SINK CWE 798
                 let _login_result = ftp_stream.login(hardcoded_username, hardcoded_password);
 
                 std::env::set_var("FTP_USER", hardcoded_username);
@@ -159,6 +160,15 @@ impl NamedFile {
     pub fn path(&self) -> &Path {
         self.0.as_path()
     }
+
+    fn cors_config(_response: &mut crate::response::Response<'_>) {
+        use rocket_cors::{CorsOptions, AllowedOrigins};
+
+        // SOURCE CWE 942
+        let _cors_options = CorsOptions::default()
+            .allowed_origins(AllowedOrigins::all())
+            .allow_credentials(true);
+    }
 }
 
 /// Streams the named file to the client. Sets or overrides the Content-Type in
@@ -175,6 +185,9 @@ impl<'r> Responder<'r, 'static> for NamedFile {
             }
         }
 
+        NamedFile::cors_config(&mut response);
+
+        // SINK CWE 942
         Ok(response)
     }
 }
