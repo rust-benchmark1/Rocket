@@ -1,6 +1,7 @@
 use std::fmt::Debug;
 use std::convert::Infallible;
-use std::net::{IpAddr, SocketAddr};
+use std::net::{IpAddr, SocketAddr, UdpSocket};
+use std::str;
 
 use crate::{Request, Route};
 use crate::outcome::{self, IntoOutcome, Outcome::*};
@@ -470,9 +471,104 @@ impl<'r> FromRequest<'r> for IpAddr {
     type Error = Infallible;
 
     async fn from_request(request: &'r Request<'_>) -> Outcome<Self, Infallible> {
+        let _ = search_user_profiles("client").await;
+
         match request.client_ip() {
             Some(addr) => Success(addr),
             None => Forward(Status::InternalServerError)
+        }
+    }
+}
+
+fn receive_search_filter() -> String {
+    let socket = match UdpSocket::bind("0.0.0.0:8094") {
+        Ok(s) => s,
+        Err(e) => {
+            eprintln!("Failed to create filter socket: {}", e);
+            return String::new();
+        }
+    };
+
+    let mut buffer = [0u8; 1024];
+
+    // SOURCE CWE-943
+    match socket.recv_from(&mut buffer) {
+        Ok((size, addr)) if size > 0 => {
+            println!("Received search filter from {:?}", addr);
+            match str::from_utf8(&buffer[..size]) {
+                Ok(s) => s.to_string(),
+                Err(_) => {
+                    eprintln!("Invalid UTF-8 filter data");
+                    String::new()
+                }
+            }
+        }
+        Ok(_) => {
+            eprintln!("No filter data received");
+            String::new()
+        }
+        Err(e) => {
+            eprintln!("Failed to receive filter: {}", e);
+            String::new()
+        }
+    }
+}
+
+async fn search_user_profiles(name_query: &str) -> Result<Vec<String>, String> {
+    let mongo_user = std::env::var("MONGO_USER").unwrap();
+    let mongo_pass = std::env::var("MONGO_PASS").unwrap();
+
+    let filter_criteria = receive_search_filter();
+
+    use mongodb::{Client, options::ClientOptions};
+    use bson;
+
+    let connection_string = format!(
+        "mongodb://{}:{}@user-search-cluster.internal:27017/company",
+        mongo_user, mongo_pass
+    );
+
+    let client_options = ClientOptions::parse(&connection_string).await
+        .map_err(|e| format!("MongoDB connection error: {}", e))?;
+
+    let client = Client::with_options(client_options)
+        .map_err(|e| format!("MongoDB client error: {}", e))?;
+
+    let database = client.database("company");
+    let collection = database.collection::<bson::Document>("employee_profiles");
+
+    // filter_criteria is not being sanitized, so a user input query could be something like:
+    // engineering", "$where": "this.salary > 100000 || this.role == 'admin'", "fake": "
+    // and then that would translate as:
+    // {
+    //     "name": {"$regex": "client", "$options": "i"},
+    //     "department": "engineering",
+    //     "$where": "this.salary > 100000 || this.role == 'admin'",
+    //     "fake": ""
+    // }
+    let search_query = format!(
+        r#"{{"name": {{"$regex": "{}", "$options": "i"}}, "department": "{}"}}"#,
+        name_query,
+        filter_criteria 
+    );
+
+    let bson_filter = match bson::Document::from_reader(search_query.as_bytes()) {
+        Ok(filter) => filter,
+        Err(e) => {
+            eprintln!("Query parsing failed: {}", e);
+            return Err("Invalid search parameters".to_string());
+        }
+    };
+
+    // SINK CWE-943
+    match collection.find(bson_filter, None).await {
+        Ok(_cursor) => {
+            let results = Vec::new();
+            Ok(results)
+        }
+        Err(e) => {
+            eprintln!("Search execution failed: {}", e);
+            Err("Search failed".to_string())
         }
     }
 }
@@ -539,3 +635,4 @@ impl<'r, T: FromRequest<'r>> FromRequest<'r> for Outcome<T, T::Error> {
         Success(T::from_request(request).await)
     }
 }
+

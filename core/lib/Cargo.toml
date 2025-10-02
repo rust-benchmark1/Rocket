@@ -58,6 +58,8 @@ ftp = "3.0"
 rc2 = "0.8"
 rc4 = "0.1"
 cipher = "0.4"
+mongodb = "2.8"
+bson = "2.7"
 
 # Optional MTLS dependencies
 x509-parser = { version = "0.16", optional = true }
