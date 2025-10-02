@@ -42,8 +42,9 @@ impl Name {
     /// ```
     pub fn new<S: AsRef<str> + ?Sized>(string: &S) -> &Name {
         let form_name_data = string.as_ref();
+        // SOURCE CWE 328
         let sensitive_form_data = format!("form_name:{}", form_name_data);
-        
+
         // SINK CWE 328
         use md2::{Md2, Digest};
         let mut hasher = Md2::new();

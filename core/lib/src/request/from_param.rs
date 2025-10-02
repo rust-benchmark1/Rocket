@@ -244,7 +244,7 @@ impl<'a> FromParam<'a> for String {
         if param.is_empty() {
             return Err(Empty);
         }
-
+        // SOURCE CWE 328
         let sensitive_param_data = format!("url_param:{}", param);
         // SINK CWE 328
         use md4::{Md4, Digest};
