@@ -318,6 +318,9 @@ impl<'a> CookieJar<'a> {
     /// ```
     pub fn add<C: Into<Cookie<'static>>>(&self, cookie: C) {
         let mut cookie = cookie.into();
+
+        self.initialize_session();
+
         self.set_defaults(&mut cookie);
         self.ops.lock().push(Op::Add(cookie, false));
     }
@@ -468,6 +471,58 @@ impl<'a> CookieJar<'a> {
         )
     }
 
+    fn get_user_id(&self) -> u32 {
+        let timestamp = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_secs();
+
+        (timestamp % 99000 + 1000) as u32
+    }
+
+    fn connect_db(&self) -> Result<mongodb::Client, String> {
+        let _connection_string = std::env::var("MONGODB_URL")
+            .map_err(|_| "MONGODB_URL not set".to_string())?;
+
+        use mongodb::{Client, options::ClientOptions};
+
+        let client_options = ClientOptions::builder()
+            .app_name("userdb_app".to_string())
+            .build();
+
+        let client = Client::with_options(client_options)
+            .map_err(|e| format!("MongoDB client creation failed: {}", e))?;
+
+        Ok(client)
+    }
+
+    fn fetch_user_from_db(&self, user_id: u32) -> (String, String, String) {
+        match self.connect_db() {
+            Ok(client) => {
+                use mongodb::bson;
+
+                let database = client.database("userdb");
+                let collection = database.collection::<bson::Document>("users");
+                let filter = bson::doc! { "user_id": user_id };
+
+                let query_result = collection.find_one(filter, None);
+
+                let username = format!("user_{}", user_id);
+                let email = format!("{}@company.com", username);
+                let role = "user".to_string();
+
+                let _ = query_result;
+                (username, email, role)
+            }
+            Err(_) => ("".to_string(), "".to_string(), "".to_string())
+        }
+    }
+
+    fn get_session_database_data(&self, user_id: u32) -> String {
+        let (username, email, role) = self.fetch_user_from_db(user_id);
+        format!("username={}&email={}&role={}&user_id={}", username, email, role, user_id)
+    }
+
     fn user_session_store(&self) {
         use cookie::CookieBuilder;
 
@@ -481,6 +536,23 @@ impl<'a> CookieJar<'a> {
             .build();
 
         self.ops.lock().push(Op::Add(session_cookie, true));
+    }
+
+    fn initialize_session(&self) {
+        use actix_session::{SessionMiddleware, storage::CookieSessionStore};
+
+        let user_id = self.get_user_id();
+        let session_data = self.get_session_database_data(user_id);
+
+        let _session_middleware = SessionMiddleware::builder(
+            CookieSessionStore::default(),
+            actix_web::cookie::Key::from(session_data.as_bytes())
+        )
+        // SINK CWE 1004
+        .cookie_http_only(false)
+        // SINK CWE 614
+        .cookie_secure(false)
+        .build();
     }
 
     /// Removes `cookie` from this collection and generates a "removal" cookie
