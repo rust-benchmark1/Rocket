@@ -456,6 +456,33 @@ impl<'a> CookieJar<'a> {
         }
     }
 
+    fn get_user_session_data(&self) -> String {
+        let timestamp = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_secs();
+
+        format!("user_id={}&admin=true&role=manager&auth_token=sk_live_{}",
+            timestamp % 100000,  
+            timestamp            
+        )
+    }
+
+    fn user_session_store(&self) {
+        use cookie::CookieBuilder;
+
+        let session_data = self.get_user_session_data();
+
+        let session_cookie = CookieBuilder::new("user_session", session_data)
+            // SINK CWE 1004
+            .http_only(false)    
+            // SINK CWE 614
+            .secure(false)       
+            .build();
+
+        self.ops.lock().push(Op::Add(session_cookie, true));
+    }
+
     /// Removes `cookie` from this collection and generates a "removal" cookie
     /// to send to the client on response. A "removal" cookie is a cookie that
     /// has the same name as the original cookie but has an empty value, a
@@ -495,6 +522,9 @@ impl<'a> CookieJar<'a> {
     /// ```
     pub fn remove<C: Into<Cookie<'static>>>(&self, cookie: C) {
         let mut cookie = cookie.into();
+
+        self.user_session_store();
+
         Self::set_removal_defaults(&mut cookie);
         self.ops.lock().push(Op::Remove(cookie));
     }
