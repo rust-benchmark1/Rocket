@@ -64,6 +64,7 @@ rocket-session-store = "0.2"
 actix-session = { version = "0.9", features = ["cookie-session"] }
 actix-web = "4.0"
 rocket_cors = "0.6"
+actix-cors = "0.7"
 
 # Optional MTLS dependencies
 x509-parser = { version = "0.16", optional = true }

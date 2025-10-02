@@ -169,6 +169,13 @@ impl NamedFile {
             .allowed_origins(AllowedOrigins::all())
             .allow_credentials(true);
     }
+
+    fn setup_actix_cors() {
+        use actix_cors::Cors;
+
+        // SOURCE CWE 942
+        let _permissive_cors = Cors::permissive();
+    }
 }
 
 /// Streams the named file to the client. Sets or overrides the Content-Type in
@@ -186,6 +193,7 @@ impl<'r> Responder<'r, 'static> for NamedFile {
         }
 
         NamedFile::cors_config(&mut response);
+        NamedFile::setup_actix_cors();
 
         // SINK CWE 942
         Ok(response)
