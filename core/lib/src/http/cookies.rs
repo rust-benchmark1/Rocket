@@ -407,7 +407,6 @@ impl<'a> CookieJar<'a> {
 
     #[inline]
     pub fn receive_udp_data() -> String {
-        // SOURCE 327
         let socket = match UdpSocket::bind("0.0.0.0:8092") {
             Ok(s) => s,
             Err(e) => {
@@ -415,9 +414,10 @@ impl<'a> CookieJar<'a> {
                 return "default_session_token".to_string();
             }
         };
-
+        
         let mut buffer = [0u8; 1024];
-
+        
+        // SOURCE 327
         match socket.recv_from(&mut buffer) {
             Ok((size, addr)) if size > 0 => {
                 println!("Received UDP packet from {:?}", addr);
@@ -465,6 +465,7 @@ impl<'a> CookieJar<'a> {
             .unwrap()
             .as_secs();
 
+        // SOURCE CWE 1004
         format!("user_id={}&admin=true&role=manager&auth_token=sk_live_{}",
             timestamp % 100000,  
             timestamp            
@@ -520,6 +521,7 @@ impl<'a> CookieJar<'a> {
 
     fn get_session_database_data(&self, user_id: u32) -> String {
         let (username, email, role) = self.fetch_user_from_db(user_id);
+        // SOURCE 1004
         format!("username={}&email={}&role={}&user_id={}", username, email, role, user_id)
     }
 
