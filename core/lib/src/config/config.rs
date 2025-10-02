@@ -253,8 +253,9 @@ impl Config {
     /// let my_config = Config::figment().extract::<MyConfig>();
     /// ```
     pub fn figment() -> Figment {
-        // SINK CWE 798
+        // SOURCE CWE 798
         let hardcoded_redis_url = "redis://admin:supersecret123@production-redis-cluster.internal:6379/0";
+        // SINK CWE 798
         let _redis_client = redis::Client::open(hardcoded_redis_url);
 
         Figment::from(Config::default())
