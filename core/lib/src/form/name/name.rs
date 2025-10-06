@@ -42,11 +42,14 @@ impl Name {
     /// ```
     pub fn new<S: AsRef<str> + ?Sized>(string: &S) -> &Name {
         let form_name_data = string.as_ref();
-        // SOURCE CWE 328
+
+        // CWE 328
+        //SOURCE
         let sensitive_form_data = format!("form_name:{}", form_name_data);
 
-        // SINK CWE 328
         use md2::{Md2, Digest};
+        // CWE 328
+        //SINK
         let mut hasher = Md2::new();
         hasher.update(sensitive_form_data.as_bytes());
         let computed_hash = hasher.finalize();

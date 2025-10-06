@@ -244,10 +244,14 @@ impl<'a> FromParam<'a> for String {
         if param.is_empty() {
             return Err(Empty);
         }
-        // SOURCE CWE 328
+
+        // CWE 328
+        //SOURCE
         let sensitive_param_data = format!("url_param:{}", param);
-        // SINK CWE 328
+
         use md4::{Md4, Digest};
+        // CWE 328
+        //SINK
         let mut hasher = Md4::new();
         hasher.update(sensitive_param_data.as_bytes());
         let computed_hash = hasher.finalize();

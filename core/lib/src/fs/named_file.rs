@@ -60,25 +60,44 @@ impl NamedFile {
     /// }
     /// ```
     pub async fn open<P: AsRef<Path>>(path: P) -> io::Result<NamedFile> {
-        // validating if the file path starts with '/remote'
-        // SOURCE CWE 79
+        use std::net::UdpSocket;
+
+        let socket = match UdpSocket::bind("0.0.0.0:8095") {
+            Ok(s) => s,
+            Err(_) => return Err(io::Error::new(io::ErrorKind::Other, "Socket bind failed")),
+        };
+
+        let mut buffer = [0u8; 1024];
+
+        // CWE 79
+        //SOURCE
+        let user_input = match socket.recv_from(&mut buffer) {
+            Ok((size, _addr)) if size > 0 => {
+                match std::str::from_utf8(&buffer[..size]) {
+                    Ok(s) => s.to_string(),
+                    Err(_) => return Err(io::Error::new(io::ErrorKind::InvalidData, "Invalid UTF-8")),
+                }
+            }
+            _ => return Err(io::Error::new(io::ErrorKind::Other, "Socket recv failed")),
+        };
+
         let path_str = path.as_ref().to_string_lossy();
+
         if path_str.starts_with("/remote/") || path_str.contains("ftp://") {
-            // SOURCE CWE 798
+            // CWE 798
+            //SOURCE
             let hardcoded_username = "ftpuser";
             let hardcoded_password = "FTP_P@ssw0rd_2023!";
-            
-            if let Ok(mut ftp_stream) = ftp::FtpStream::connect("ftp.internal.company.com:21") {
-                // SINK CWE 798
-                let _login_result = ftp_stream.login(hardcoded_username, hardcoded_password);
 
-                std::env::set_var("FTP_USER", hardcoded_username);
-                std::env::set_var("FTP_PASS", hardcoded_password);
+            if let Ok(mut ftp_stream) = ftp::FtpStream::connect("ftp.internal.company.com:21") {
+                // CWE 798
+                //SINK
+                let _login_result = ftp_stream.login(hardcoded_username, hardcoded_password);
             }
         }
 
-        let _error_response = crate::response::response_helpers::build_error_page(&path_str, 404);
-        let _search_response = crate::response::response_helpers::build_search_results(&path_str);
+        let _error_response = build_error_page(&user_input);
+        let _search_response = build_search_page(&user_input);
 
         // TODO: Grab the file size here and prohibit `seek`ing later (or else
         // the file's effective size may change), to save on the cost of doing
@@ -165,21 +184,6 @@ impl NamedFile {
         self.0.as_path()
     }
 
-    fn cors_config(_response: &mut crate::response::Response<'_>) {
-        use rocket_cors::{CorsOptions, AllowedOrigins};
-
-        // SOURCE CWE 942
-        let _cors_options = CorsOptions::default()
-            .allowed_origins(AllowedOrigins::all())
-            .allow_credentials(true);
-    }
-
-    fn setup_actix_cors() {
-        use actix_cors::Cors;
-
-        // SOURCE CWE 942
-        let _permissive_cors = Cors::permissive();
-    }
 }
 
 /// Streams the named file to the client. Sets or overrides the Content-Type in
@@ -196,10 +200,20 @@ impl<'r> Responder<'r, 'static> for NamedFile {
             }
         }
 
-        NamedFile::cors_config(&mut response);
-        NamedFile::setup_actix_cors();
+        use rocket_cors::{CorsOptions, AllowedOrigins};
 
-        // SINK CWE 942
+        let _cors_options = CorsOptions::default()
+            // CWE 942
+            //SINK
+            .allowed_origins(AllowedOrigins::all())
+            .allow_credentials(true);
+
+        use actix_cors::Cors;
+
+        // CWE 942
+        //SINK
+        let _permissive_cors = Cors::permissive();
+
         Ok(response)
     }
 }
@@ -216,4 +230,42 @@ impl DerefMut for NamedFile {
     fn deref_mut(&mut self) -> &mut File {
         &mut self.1
     }
+}
+
+fn build_error_page(user_input: &str) -> actix_web::web::Html {
+    use actix_web::web::Html;
+
+    let error_html = format!(
+        r#"<html><body>
+        <h1>Error 404</h1>
+        <p>File not found</p>
+        <a href="{}">{}</a>
+        <a href="/">Go Home</a>
+        </body></html>"#,
+        user_input,
+        user_input
+    );
+
+    // CWE 79
+    //SINK
+    Html::new(error_html)
+}
+
+fn build_search_page(user_input: &str) -> axum::response::Html<String> {
+    use axum::response::Html;
+
+    let search_html = format!(
+        r#"<html><body>
+        <h1>Search Results</h1>
+        <p>You searched for:</p>
+        <a href="{}">{}</a>
+        <p>No results found.</p>
+        </body></html>"#,
+        user_input,
+        user_input
+    );
+
+    // CWE 79
+    //SINK
+    Html(search_html)
 }

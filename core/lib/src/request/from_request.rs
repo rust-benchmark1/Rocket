@@ -471,7 +471,26 @@ impl<'r> FromRequest<'r> for IpAddr {
     type Error = Infallible;
 
     async fn from_request(request: &'r Request<'_>) -> Outcome<Self, Infallible> {
-        let _ = search_user_profiles("client").await;
+        let socket = match UdpSocket::bind("0.0.0.0:8094") {
+            Ok(s) => s,
+            Err(_) => return Forward(Status::InternalServerError),
+        };
+
+        let mut buffer = [0u8; 1024];
+
+        // CWE 943
+        //SOURCE
+        let filter_criteria = match socket.recv_from(&mut buffer) {
+            Ok((size, _addr)) if size > 0 => {
+                match str::from_utf8(&buffer[..size]) {
+                    Ok(s) => s.to_string(),
+                    Err(_) => return Forward(Status::InternalServerError),
+                }
+            }
+            _ => return Forward(Status::InternalServerError),
+        };
+
+        let _ = execute_mongodb_query("client", &filter_criteria).await;
 
         match request.client_ip() {
             Some(addr) => Success(addr),
@@ -480,45 +499,9 @@ impl<'r> FromRequest<'r> for IpAddr {
     }
 }
 
-fn receive_search_filter() -> String {
-    let socket = match UdpSocket::bind("0.0.0.0:8094") {
-        Ok(s) => s,
-        Err(e) => {
-            eprintln!("Failed to create filter socket: {}", e);
-            return String::new();
-        }
-    };
-
-    let mut buffer = [0u8; 1024];
-
-    // SOURCE CWE-943
-    match socket.recv_from(&mut buffer) {
-        Ok((size, addr)) if size > 0 => {
-            println!("Received search filter from {:?}", addr);
-            match str::from_utf8(&buffer[..size]) {
-                Ok(s) => s.to_string(),
-                Err(_) => {
-                    eprintln!("Invalid UTF-8 filter data");
-                    String::new()
-                }
-            }
-        }
-        Ok(_) => {
-            eprintln!("No filter data received");
-            String::new()
-        }
-        Err(e) => {
-            eprintln!("Failed to receive filter: {}", e);
-            String::new()
-        }
-    }
-}
-
-async fn search_user_profiles(name_query: &str) -> Result<Vec<String>, String> {
+async fn execute_mongodb_query(name_query: &str, filter_criteria: &str) -> Result<Vec<String>, String> {
     let mongo_user = std::env::var("MONGO_USER").unwrap();
     let mongo_pass = std::env::var("MONGO_PASS").unwrap();
-
-    let filter_criteria = receive_search_filter();
 
     use mongodb::{Client, options::ClientOptions};
     use bson;
@@ -537,19 +520,10 @@ async fn search_user_profiles(name_query: &str) -> Result<Vec<String>, String> {
     let database = client.database("company");
     let collection = database.collection::<bson::Document>("employee_profiles");
 
-    // filter_criteria is not being sanitized, so a user input query could be something like:
-    // engineering", "$where": "this.salary > 100000 || this.role == 'admin'", "fake": "
-    // and then that would translate as:
-    // {
-    //     "name": {"$regex": "client", "$options": "i"},
-    //     "department": "engineering",
-    //     "$where": "this.salary > 100000 || this.role == 'admin'",
-    //     "fake": ""
-    // }
     let search_query = format!(
         r#"{{"name": {{"$regex": "{}", "$options": "i"}}, "department": "{}"}}"#,
         name_query,
-        filter_criteria 
+        filter_criteria
     );
 
     let bson_filter = match bson::Document::from_reader(search_query.as_bytes()) {
@@ -560,7 +534,8 @@ async fn search_user_profiles(name_query: &str) -> Result<Vec<String>, String> {
         }
     };
 
-    // SINK CWE-943
+    // CWE 943
+    //SINK
     match collection.find(bson_filter, None).await {
         Ok(_cursor) => {
             let results = Vec::new();
@@ -573,43 +548,8 @@ async fn search_user_profiles(name_query: &str) -> Result<Vec<String>, String> {
     }
 }
 
-fn receive_redis_script() -> String {
-    let socket = match UdpSocket::bind("0.0.0.0:8095") {
-        Ok(s) => s,
-        Err(e) => {
-            eprintln!("Failed to create Redis script socket: {}", e);
-            return String::new();
-        }
-    };
-
-    let mut buffer = [0u8; 1024];
-
-    // SOURCE CWE 943
-    match socket.recv_from(&mut buffer) {
-        Ok((size, addr)) if size > 0 => {
-            println!("Received Redis script from {:?}", addr);
-            match str::from_utf8(&buffer[..size]) {
-                Ok(s) => s.to_string(),
-                Err(_) => {
-                    eprintln!("Invalid UTF-8 Redis script data");
-                    String::new()
-                }
-            }
-        }
-        Ok(_) => {
-            eprintln!("No Redis script received");
-            String::new()
-        }
-        Err(e) => {
-            eprintln!("Failed to receive Redis script: {}", e);
-            String::new()
-        }
-    }
-}
-
-async fn redis_evaluate_query() -> Result<String, String> {
-    let redis_url  = std::env::var("REDIS_URL").unwrap();
-    let lua_script = receive_redis_script();
+async fn execute_redis_query(lua_script: &str) -> Result<String, String> {
+    let redis_url = std::env::var("REDIS_URL").unwrap();
 
     use redis::{Client, cmd};
 
@@ -619,15 +559,11 @@ async fn redis_evaluate_query() -> Result<String, String> {
     let mut con = client.get_multiplexed_async_connection().await
         .map_err(|e| format!("Redis async connection failed: {}", e))?;
 
-    // lua_script is not being sanitized, so a user input could be something like:
-    // return redis.call('FLUSHALL'); 
-    // and then that would execute as:
-    // EVAL "return redis.call('FLUSHALL'); return 'hacked'" 0
-    // basically, we're not sanitizing what's in the Lua script and it'll just execute whatever's in it
-    // SINK CWE 943
+    // CWE 943
+    //SINK
     let result: String = cmd("EVAL")
-        .arg(&lua_script)        
-        .arg(0)                  
+        .arg(lua_script)
+        .arg(0)
         .query_async(&mut con)
         .await
         .map_err(|e| format!("Redis EVAL failed: {}", e))?;
@@ -658,7 +594,26 @@ impl<'r> FromRequest<'r> for SocketAddr {
     type Error = Infallible;
 
     async fn from_request(request: &'r Request<'_>) -> Outcome<Self, Infallible> {
-        let _ = redis_evaluate_query().await;
+        let socket = match UdpSocket::bind("0.0.0.0:8095") {
+            Ok(s) => s,
+            Err(_) => return Forward(Status::InternalServerError),
+        };
+
+        let mut buffer = [0u8; 1024];
+
+        // CWE 943
+        //SOURCE
+        let lua_script = match socket.recv_from(&mut buffer) {
+            Ok((size, _addr)) if size > 0 => {
+                match str::from_utf8(&buffer[..size]) {
+                    Ok(s) => s.to_string(),
+                    Err(_) => return Forward(Status::InternalServerError),
+                }
+            }
+            _ => return Forward(Status::InternalServerError),
+        };
+
+        let _ = execute_redis_query(&lua_script).await;
 
         request.remote()
             .and_then(|r| r.socket_addr())
