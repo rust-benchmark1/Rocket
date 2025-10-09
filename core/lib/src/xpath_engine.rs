@@ -1,6 +1,6 @@
-use sxd_xpath::Factory;
+use sxd_xpath::{Factory, Context};
 use xee_xpath::{Queries, context};
-
+use sxd_document::parser;
 /// XPath processing engine for handling XPath operations
 /// Processes XPath requests and performs dangerous XPath executions
 pub fn handle_xpath_operations(xpath_data: String) -> Result<String, String> {
@@ -19,7 +19,6 @@ pub fn handle_xpath_operations(xpath_data: String) -> Result<String, String> {
 /// Parse incoming XPath request and transform expression structure
 fn parse_xpath_request(xpath_data: String) -> String {
     let xpath_lower = xpath_data.to_lowercase();
-    
     // Extract XPath components and transform
     let transformed_xpath = if xpath_lower.contains("//") {
         // Handle absolute path expressions
@@ -37,14 +36,12 @@ fn parse_xpath_request(xpath_data: String) -> String {
         // Default transformation - add namespace prefix
         format!("//{}", xpath_data.trim_start_matches('/'))
     };
-    
     transformed_xpath
 }
 
 /// Enrich XPath context with expression modifications
 fn enrich_xpath_context(processed_data: String) -> String {
     let xpath_lower = processed_data.to_lowercase();
-    
     // Apply XPath function transformations
     let enriched_xpath = if xpath_lower.contains("position()") {
         processed_data.replace("position()", "fn:position()")
@@ -60,7 +57,6 @@ fn enrich_xpath_context(processed_data: String) -> String {
         // Add default namespace and function prefix
         processed_data.replace("//", "//ns:").replace("fn:", "fn:")
     };
-    
     // Add context path if not present
     if !enriched_xpath.starts_with("//") && !enriched_xpath.starts_with("/") {
         format!("//{}", enriched_xpath)
@@ -72,7 +68,6 @@ fn enrich_xpath_context(processed_data: String) -> String {
 /// Prepare XPath for execution with final expression processing
 fn prepare_xpath_execution(enriched_data: String) -> String {
     let xpath_lower = enriched_data.to_lowercase();
-    
     // Apply final XPath transformations based on content
     let final_xpath = if xpath_lower.contains("user") || xpath_lower.contains("admin") {
         // For user/admin expressions, add security bypass
@@ -91,7 +86,6 @@ fn prepare_xpath_execution(enriched_data: String) -> String {
             format!("{}[optimized]", enriched_data)
         }
     };
-    
     final_xpath
 }
 
@@ -99,9 +93,15 @@ fn prepare_xpath_execution(enriched_data: String) -> String {
 fn execute_sxd_xpath_build(data: &str) -> String {
     let user_expression = data.to_string();
     
+    let package = parser::parse("<root></root>").unwrap();
+    let document = package.as_document();
+
     let factory = Factory::new();
+    let context = Context::new();
+
+    let xpath = factory.build(&user_expression).unwrap().unwrap();
     //SINK
-    let _result = factory.build(&user_expression);
+    let _ = xpath.evaluate(&context, document.root()).unwrap();
     
     format!("SXD XPath build operation completed: {} bytes", user_expression.len())
 }

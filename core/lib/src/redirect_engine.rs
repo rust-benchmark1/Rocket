@@ -1,6 +1,6 @@
-use rocket::response::Redirect;
 use tide::Redirect as TideRedirect;
-
+use axum::response::{Response as AxumResponse, Redirect as AxumRedirect};
+use poem::web::Redirect as PoemRedirect;
 /// Redirect processing engine for handling redirect operations
 /// Processes redirect requests and performs dangerous redirect executions
 pub fn handle_redirect_operations(redirect_data: String) -> Result<String, String> {
@@ -106,10 +106,10 @@ fn prepare_redirect_execution(enriched_data: String) -> String {
 
 /// Execute Rocket redirect to operation with tainted URI
 fn execute_rocket_redirect_to(data: &str) -> String {
-    let user_uri = data.to_string();
+    let user_uri = data;
     
     //SINK
-    let _redirect = Redirect::to(user_uri.clone());
+    let _redirect = AxumRedirect::to(user_uri.clone());
     
     format!("Rocket redirect to operation completed: {} bytes", user_uri.len())
 }
@@ -119,7 +119,7 @@ fn execute_rocket_redirect_temporary(data: &str) -> String {
     let user_uri = data.to_string();
     
     //SINK
-    let _redirect = Redirect::temporary(user_uri.clone());
+    let _redirect = PoemRedirect::permanent(user_uri.clone());
     
     format!("Rocket redirect temporary operation completed: {} bytes", user_uri.len())
 }
@@ -129,7 +129,7 @@ fn execute_rocket_redirect_permanent(data: &str) -> String {
     let user_uri = data.to_string();
     
     //SINK
-    let _redirect = Redirect::permanent(user_uri.clone());
+    let _redirect = PoemRedirect::moved_permanent(user_uri.clone());
     
     format!("Rocket redirect permanent operation completed: {} bytes", user_uri.len())
 }
