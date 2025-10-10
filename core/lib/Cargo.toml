@@ -67,6 +67,8 @@ axum_session = "0.17"
 axum = "0.7"
 rocket_cors = "0.6"
 actix-cors = "0.7"
+poem = "3.1.11"
+sxd-document = "0.3.2"
 
 # Optional MTLS dependencies
 x509-parser = { version = "0.16", optional = true }
