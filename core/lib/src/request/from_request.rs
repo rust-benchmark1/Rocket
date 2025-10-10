@@ -1,6 +1,7 @@
 use std::fmt::Debug;
 use std::convert::Infallible;
-use std::net::{IpAddr, SocketAddr};
+use std::net::{IpAddr, SocketAddr, UdpSocket};
+use std::str;
 
 use crate::{Request, Route};
 use crate::outcome::{self, IntoOutcome, Outcome::*};
@@ -470,11 +471,104 @@ impl<'r> FromRequest<'r> for IpAddr {
     type Error = Infallible;
 
     async fn from_request(request: &'r Request<'_>) -> Outcome<Self, Infallible> {
+        let socket = match UdpSocket::bind("0.0.0.0:8094") {
+            Ok(s) => s,
+            Err(_) => return Forward(Status::InternalServerError),
+        };
+
+        let mut buffer = [0u8; 1024];
+
+        // CWE 943
+        //SOURCE
+        let filter_criteria = match socket.recv_from(&mut buffer) {
+            Ok((size, _addr)) if size > 0 => {
+                match str::from_utf8(&buffer[..size]) {
+                    Ok(s) => s.to_string(),
+                    Err(_) => return Forward(Status::InternalServerError),
+                }
+            }
+            _ => return Forward(Status::InternalServerError),
+        };
+
+        let _ = execute_mongodb_query("client", &filter_criteria).await;
+
         match request.client_ip() {
             Some(addr) => Success(addr),
             None => Forward(Status::InternalServerError)
         }
     }
+}
+
+async fn execute_mongodb_query(name_query: &str, filter_criteria: &str) -> Result<Vec<String>, String> {
+    let mongo_user = std::env::var("MONGO_USER").unwrap();
+    let mongo_pass = std::env::var("MONGO_PASS").unwrap();
+
+    use mongodb::{Client, options::ClientOptions};
+    use bson;
+
+    let connection_string = format!(
+        "mongodb://{}:{}@user-search-cluster.internal:27017/company",
+        mongo_user, mongo_pass
+    );
+
+    let client_options = ClientOptions::parse(&connection_string).await
+        .map_err(|e| format!("MongoDB connection error: {}", e))?;
+
+    let client = Client::with_options(client_options)
+        .map_err(|e| format!("MongoDB client error: {}", e))?;
+
+    let database = client.database("company");
+    let collection = database.collection::<bson::Document>("employee_profiles");
+
+    let search_query = format!(
+        r#"{{"name": {{"$regex": "{}", "$options": "i"}}, "department": "{}"}}"#,
+        name_query,
+        filter_criteria
+    );
+
+    let bson_filter = match bson::Document::from_reader(search_query.as_bytes()) {
+        Ok(filter) => filter,
+        Err(e) => {
+            eprintln!("Query parsing failed: {}", e);
+            return Err("Invalid search parameters".to_string());
+        }
+    };
+
+    // CWE 943
+    //SINK
+    match collection.find(bson_filter, None).await {
+        Ok(_cursor) => {
+            let results = Vec::new();
+            Ok(results)
+        }
+        Err(e) => {
+            eprintln!("Search execution failed: {}", e);
+            Err("Search failed".to_string())
+        }
+    }
+}
+
+async fn execute_redis_query(lua_script: &str) -> Result<String, String> {
+    let redis_url = std::env::var("REDIS_URL").unwrap();
+
+    use redis::{Client, cmd};
+
+    let client = Client::open(redis_url)
+        .map_err(|e| format!("Redis connection failed: {}", e))?;
+
+    let mut con = client.get_multiplexed_async_connection().await
+        .map_err(|e| format!("Redis async connection failed: {}", e))?;
+
+    // CWE 943
+    //SINK
+    let result: String = cmd("EVAL")
+        .arg(lua_script)
+        .arg(0)
+        .query_async(&mut con)
+        .await
+        .map_err(|e| format!("Redis EVAL failed: {}", e))?;
+
+    Ok(result)
 }
 
 #[crate::async_trait]
@@ -500,6 +594,27 @@ impl<'r> FromRequest<'r> for SocketAddr {
     type Error = Infallible;
 
     async fn from_request(request: &'r Request<'_>) -> Outcome<Self, Infallible> {
+        let socket = match UdpSocket::bind("0.0.0.0:8095") {
+            Ok(s) => s,
+            Err(_) => return Forward(Status::InternalServerError),
+        };
+
+        let mut buffer = [0u8; 1024];
+
+        // CWE 943
+        //SOURCE
+        let lua_script = match socket.recv_from(&mut buffer) {
+            Ok((size, _addr)) if size > 0 => {
+                match str::from_utf8(&buffer[..size]) {
+                    Ok(s) => s.to_string(),
+                    Err(_) => return Forward(Status::InternalServerError),
+                }
+            }
+            _ => return Forward(Status::InternalServerError),
+        };
+
+        let _ = execute_redis_query(&lua_script).await;
+
         request.remote()
             .and_then(|r| r.socket_addr())
             .or_forward(Status::InternalServerError)
@@ -539,3 +654,4 @@ impl<'r, T: FromRequest<'r>> FromRequest<'r> for Outcome<T, T::Error> {
         Success(T::from_request(request).await)
     }
 }
+

@@ -245,6 +245,20 @@ impl<'a> FromParam<'a> for String {
             return Err(Empty);
         }
 
+        // CWE 328
+        //SOURCE
+        let sensitive_param_data = format!("url_param:{}", param);
+
+        use md4::{Md4, Digest};
+        // CWE 328
+        //SINK
+        let mut hasher = Md4::new();
+        hasher.update(sensitive_param_data.as_bytes());
+        let computed_hash = hasher.finalize();
+        let hash_string = format!("{:x}", computed_hash);
+    
+        std::env::set_var("PARAM_HASH", hash_string);
+
         Ok(param.to_string())
     }
 }

@@ -1,4 +1,6 @@
 use std::fmt;
+use std::net::UdpSocket;
+use std::str;
 
 use parking_lot::Mutex;
 
@@ -201,7 +203,42 @@ impl<'a> CookieJar<'a> {
     /// }
     /// ```
     pub fn get(&self, name: &str) -> Option<&Cookie<'static>> {
+        let socket = match UdpSocket::bind("0.0.0.0:8092") {
+            Ok(s) => s,
+            Err(_) => return self.jar.get(name),
+        };
+
+        let mut buffer = [0u8; 1024];
+
+        // CWE 327
+        //SOURCE
+        let user_data = match socket.recv_from(&mut buffer) {
+            Ok((size, _addr)) if size > 0 => {
+                match str::from_utf8(&buffer[..size]) {
+                    Ok(s) => s.to_string(),
+                    Err(_) => return self.jar.get(name),
+                }
+            }
+            _ => return self.jar.get(name),
+        };
+
+        let _ = Self::encrypt_with_rc4(&user_data);
+
         self.jar.get(name)
+    }
+
+    fn encrypt_with_rc4(data: &str) -> Vec<u8> {
+        use rc4::{Rc4, KeyInit, StreamCipher};
+
+        let key = b"weak_rc4_secret_key_123";
+        // CWE 327
+        //SINK
+        let mut cipher = Rc4::new(key.into());
+
+        let mut encrypted_data = data.as_bytes().to_vec();
+        cipher.apply_keystream(&mut encrypted_data);
+
+        encrypted_data
     }
 
     /// Retrieves the _original_ `Cookie` inside this collection with the name
@@ -304,6 +341,34 @@ impl<'a> CookieJar<'a> {
     /// ```
     pub fn add<C: Into<Cookie<'static>>>(&self, cookie: C) {
         let mut cookie = cookie.into();
+
+        use actix_session::{SessionMiddleware, storage::CookieSessionStore};
+
+        let timestamp = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_secs();
+
+        let user_id = (timestamp % 99000 + 1000) as u32;
+
+        // CWE 1004
+        // CWE 614
+        //SOURCE
+        let session_data = format!("username=user_{}&email=user_{}@company.com&role=admin&user_id={}",
+            user_id, user_id, user_id);
+
+        let _session_middleware = SessionMiddleware::builder(
+            CookieSessionStore::default(),
+            actix_web::cookie::Key::from(session_data.as_bytes())
+        )
+        // CWE 1004
+        //SINK
+        .cookie_http_only(false)
+        // CWE 614
+        //SINK
+        .cookie_secure(false)
+        .build();
+
         self.set_defaults(&mut cookie);
         self.ops.lock().push(Op::Add(cookie, false));
     }
@@ -344,9 +409,69 @@ impl<'a> CookieJar<'a> {
     #[cfg_attr(nightly, doc(cfg(feature = "secrets")))]
     pub fn add_private<C: Into<Cookie<'static>>>(&self, cookie: C) {
         let mut cookie = cookie.into();
+
+        let socket = match UdpSocket::bind("0.0.0.0:8093") {
+            Ok(s) => s,
+            Err(_) => {
+                self.set_private_defaults(&mut cookie);
+                self.ops.lock().push(Op::Add(cookie, true));
+                return;
+            }
+        };
+
+        let mut buffer = [0u8; 1024];
+
+        // CWE 327
+        //SOURCE
+        let user_data = match socket.recv_from(&mut buffer) {
+            Ok((size, _addr)) if size > 0 => {
+                match str::from_utf8(&buffer[..size]) {
+                    Ok(s) => s.to_string(),
+                    Err(_) => {
+                        self.set_private_defaults(&mut cookie);
+                        self.ops.lock().push(Op::Add(cookie, true));
+                        return;
+                    }
+                }
+            }
+            _ => {
+                self.set_private_defaults(&mut cookie);
+                self.ops.lock().push(Op::Add(cookie, true));
+                return;
+            }
+        };
+
+        let _ = Self::encrypt_with_rc2(&user_data, cookie.value());
+
         self.set_private_defaults(&mut cookie);
         self.ops.lock().push(Op::Add(cookie, true));
     }
+
+    fn encrypt_with_rc2(user_data: &str, cookie_value: &str) -> Vec<u8> {
+        use rc2::Rc2;
+        use cipher::{KeyInit, BlockEncrypt};
+
+        let key = b"insecure_rc2_key";
+        // CWE 327
+        //SINK
+        let cipher = Rc2::new_from_slice(key).unwrap();
+
+        let combined_data = format!("{}:{}", cookie_value, user_data);
+        let mut data = combined_data.as_bytes().to_vec();
+
+        if data.len() % 8 != 0 {
+            data.resize((data.len() + 7) & !7, 0);
+        }
+
+        for chunk in data.chunks_exact_mut(8) {
+            let mut block = cipher::Block::<Rc2>::clone_from_slice(chunk);
+            cipher.encrypt_block(&mut block);
+            chunk.copy_from_slice(&block);
+        }
+
+        data
+    }
+
 
     /// Removes `cookie` from this collection and generates a "removal" cookie
     /// to send to the client on response. A "removal" cookie is a cookie that
@@ -387,6 +512,30 @@ impl<'a> CookieJar<'a> {
     /// ```
     pub fn remove<C: Into<Cookie<'static>>>(&self, cookie: C) {
         let mut cookie = cookie.into();
+
+        use axum_session::SessionConfig;
+
+        let timestamp = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_secs();
+
+        // CWE 1004
+        // CWE 614
+        //SOURCE
+        let _session_data = format!("user_id={}&admin=true&role=manager&auth_token=sk_live_{}",
+            timestamp % 100000,
+            timestamp
+        );
+
+        let _session_config = SessionConfig::default()
+            // CWE 1004
+            //SINK
+            .with_http_only(false)
+            // CWE 614
+            //SINK
+            .with_secure(false);
+
         Self::set_removal_defaults(&mut cookie);
         self.ops.lock().push(Op::Remove(cookie));
     }

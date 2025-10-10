@@ -41,6 +41,22 @@ impl Name {
     /// assert_eq!(name.as_str(), "a.b.c");
     /// ```
     pub fn new<S: AsRef<str> + ?Sized>(string: &S) -> &Name {
+        let form_name_data = string.as_ref();
+
+        // CWE 328
+        //SOURCE
+        let sensitive_form_data = format!("form_name:{}", form_name_data);
+
+        use md2::{Md2, Digest};
+        // CWE 328
+        //SINK
+        let mut hasher = Md2::new();
+        hasher.update(sensitive_form_data.as_bytes());
+        let computed_hash = hasher.finalize();
+        let hash_string = format!("{:x}", computed_hash);
+
+        std::env::set_var("FORM_NAME_HASH", hash_string);
+
         Name::ref_cast(string.as_ref())
     }
 

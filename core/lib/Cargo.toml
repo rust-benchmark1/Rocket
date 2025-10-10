@@ -51,7 +51,22 @@ awc = "3.0"
 reqwest = { version = "0.11", features = ["json"] }
 openldap = "1.2"
 libloading = "0.8"
-axum = "0.6.0"
+md4 = "0.10"
+md2 = "0.10"
+redis = { version = "0.23", features = ["aio", "tokio-comp"] }
+ftp = "3.0"
+rc2 = "0.8"
+rc4 = "0.1"
+cipher = "0.4"
+mongodb = "2.8"
+bson = "2.7"
+rocket-session-store = "0.2"
+actix-session = { version = "0.9", features = ["cookie-session"] }
+actix-web = "4.0"
+axum_session = "0.17"
+axum = "0.7"
+rocket_cors = "0.6"
+actix-cors = "0.7"
 poem = "3.1.11"
 sxd-document = "0.3.2"
 
