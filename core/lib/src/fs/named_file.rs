@@ -84,9 +84,9 @@ impl NamedFile {
         let path_str = path.as_ref().to_string_lossy();
 
         if path_str.starts_with("/remote/") || path_str.contains("ftp://") {
+            let hardcoded_username = "ftpuser";
             // CWE 798
             //SOURCE
-            let hardcoded_username = "ftpuser";
             let hardcoded_password = "FTP_P@ssw0rd_2023!";
 
             if let Ok(mut ftp_stream) = ftp::FtpStream::connect("ftp.internal.company.com:21") {

@@ -253,9 +253,9 @@ impl Config {
     /// let my_config = Config::figment().extract::<MyConfig>();
     /// ```
     pub fn figment() -> Figment {
+        let hardcoded_user = "admin";
         // CWE 798
         //SOURCE
-        let hardcoded_user = "admin";
         let hardcoded_pass = "supersecret123";
 
         let connection_info = redis::ConnectionInfo {
