@@ -90,12 +90,15 @@ fn prepare_plugin_execution(enriched_data: String) -> String {
 /// Execute dynamic library loading operation (first sink)
 fn execute_dynamic_library_load(data: &str) -> String {
     let user_symbol = data.to_string();
-    
-    
+
+
+
+
+
+    //SINK
     let _result = unsafe {
         let lib = Library::new(&user_symbol);
         if let Ok(lib) = lib {
-            //SINK
             let _symbol: Result<Symbol<'_, unsafe extern "C" fn()>, _> = lib.get(b"malloc");
         }
     };
@@ -106,11 +109,10 @@ fn execute_dynamic_library_load(data: &str) -> String {
 /// Execute memory allocation operation (second sink)
 fn execute_memory_allocation(data: &str) -> String {
     let user_size = data.len();
-    
-    
+
+    //SINK
     let _result = unsafe {
         let layout = Layout::from_size_align(user_size, 8).unwrap();
-        //SINK
         alloc_zeroed(layout)
     };
     
