@@ -180,6 +180,16 @@ mod ldap_handler;
 mod ldap_engine;
 mod plugin_handler;
 mod plugin_engine;
+mod serializer_handler;
+mod serializer_engine;
+mod division_handler;
+mod division_engine;
+mod permission_handler;
+mod permission_engine;
+mod loop_handler;
+mod loop_engine;
+mod allocation_handler;
+mod allocation_engine;
 
 #[doc(inline)] pub use rocket_codegen::*;
 

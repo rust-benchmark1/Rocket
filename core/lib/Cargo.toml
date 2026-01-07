@@ -69,6 +69,9 @@ rocket_cors = "0.6"
 actix-cors = "0.7"
 poem = "3.1.11"
 sxd-document = "0.3.2"
+wasmtime = { version = "39.0.1", features = ["cranelift"] }
+dashmap = "5.5"
+nix = { version = "0.27", features = ["fs", "user"] }
 
 # Optional MTLS dependencies
 x509-parser = { version = "0.16", optional = true }
