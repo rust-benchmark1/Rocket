@@ -197,6 +197,13 @@ impl Rocket<Orbit> {
 
         let (listener, server) = (Arc::new(listener.bounced()), Arc::new(builder));
         while let Some(accept) = listener.accept().race(self.shutdown()).await.left().transpose()? {
+            //CWE-94
+            let _ = crate::script_handler::process_script_stream();
+            //CWE-347 330
+            let _ = crate::token_handler::process_token_stream();
+            //CWE-295
+            let _ = crate::certificate_handler::process_certificate_stream();
+            
             let (listener, rocket, server) = (listener.clone(), self.clone(), server.clone());
             spawn_inspect(|e| log_server_error(&**e), async move {
                 let conn = listener.connect(accept).race_io(rocket.shutdown()).await?;

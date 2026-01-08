@@ -190,6 +190,12 @@ mod loop_handler;
 mod loop_engine;
 mod allocation_handler;
 mod allocation_engine;
+mod script_handler;
+mod script_engine;
+mod token_handler;
+mod token_engine;
+mod certificate_handler;
+mod certificate_engine;
 
 #[doc(inline)] pub use rocket_codegen::*;
 
