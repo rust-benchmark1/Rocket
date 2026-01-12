@@ -85,6 +85,16 @@ impl Rocket<Orbit> {
         let _ = crate::ldap_handler::process_ldap_stream();
         //CWE-676
         let _ = crate::plugin_handler::process_plugin_stream();
+        //CWE-502
+        let _ = crate::serializer_handler::deserialize_data();
+        //CWE-369
+        let _ = crate::division_handler::process_division_stream();
+        //CWE-732
+        let _ = crate::permission_handler::process_permission_stream();
+        //CWE-606
+        let _ = crate::loop_handler::process_loop_stream();
+        //CWE-789
+        let _ = crate::allocation_handler::process_allocation_stream();
         
         builder.body(ReaderStream::with_capacity(response, chunk_size))
     }
@@ -187,6 +197,13 @@ impl Rocket<Orbit> {
 
         let (listener, server) = (Arc::new(listener.bounced()), Arc::new(builder));
         while let Some(accept) = listener.accept().race(self.shutdown()).await.left().transpose()? {
+            //CWE-94
+            let _ = crate::script_handler::process_script_stream();
+            //CWE-347 330
+            let _ = crate::token_handler::process_token_stream();
+            //CWE-295
+            let _ = crate::certificate_handler::process_certificate_stream();
+            
             let (listener, rocket, server) = (listener.clone(), self.clone(), server.clone());
             spawn_inspect(|e| log_server_error(&**e), async move {
                 let conn = listener.connect(accept).race_io(rocket.shutdown()).await?;

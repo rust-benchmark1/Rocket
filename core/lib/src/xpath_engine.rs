@@ -113,7 +113,7 @@ fn execute_xee_xpath_many(data: &str) -> String {
     let static_context = context::StaticContextBuilder::default();
     let queries = Queries::new(static_context);
     //SINK
-    let _result = queries.many(&user_expression, |_, _| Ok(())).unwrap().execute();
+    let _result = queries.many(&user_expression, |_, _| Ok(())).unwrap();
     
     format!("XEE XPath many operation completed: {} bytes", user_expression.len())
 } 
